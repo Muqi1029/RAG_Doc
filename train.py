@@ -8,6 +8,7 @@ from utils import read_json, write_json, retrieve_top_k_documents
 def train(dataset, model, optimizer, lr_scheduler, loss_function, epochs, batch_size, device, document_dir='input/document.json'):
     time_metric = AverageMeter("epoch time:", fmt=":.4f")
     documents = read_json(document_dir)
+    documents = torch.tensor([document['facts_embedding'] for document in documents], device=device)
     
     for epoch in range(epochs):
         start_time = time.time()
@@ -21,7 +22,7 @@ def train(dataset, model, optimizer, lr_scheduler, loss_function, epochs, batch_
                 query_embedding, evidence_list = torch.Tensor(query_embedding).to(device), torch.Tensor(evidence_list).to(device)
                 pred = model(query_embedding)
 
-                loss = loss_function(pred, evidence_list, device, documents=documents)
+                loss = loss_function(query_embedding, pred, evidence_list, device, documents=documents)
                 loss.backward()
                 if i % batch_size == 0:
                     optimizer.step()

@@ -5,6 +5,7 @@ import numpy as np
 import math
 import json
 import torch.nn.functional as F
+from torch import Tensor
 
 
 def read_json(path):
@@ -56,11 +57,13 @@ def retrieve_top_k_documents(query_embedding, document_embeddings, k=3):
 def save_params(model, model_name, checkpoint_dir='checkpoint'):
     filepath = os.path.join(checkpoint_dir, f"model_{model_name}.params")
     torch.save(model.state_dict(), filepath)
+    print(f"model successfully saved to 'checkpoint/model_{model_name}.params'")
 
 
 def load_params(model, model_name, device: str, checkpoint_dir='checkpoint'):
     filepath = os.path.join(checkpoint_dir, f"model_{model_name}.params")
     model.load_state_dict(torch.load(filepath, map_location=device))
+    print(f"model successfully loaded from 'checkpoint/model_{model_name}.params'")
     return model
 
 def getRandomDocumentEmbedding(documents, device, K=5):
@@ -68,8 +71,30 @@ def getRandomDocumentEmbedding(documents, device, K=5):
     if K > num_documents:
         raise ValueError("K cannot be greater than the number of documents")
     random_indices = random.sample(range(num_documents), K)
-    random_document_embedding = [documents[i]['facts_embedding'] for i in random_indices]
+    random_document_embedding = [documents[i] for i in random_indices]
     return torch.Tensor(random_document_embedding, device=device)
+
+
+def getNegativeDocumentEmbedding(original_embedding, documents: Tensor, device, K=5):
+    """
+
+    Args:
+        x (Tensor): (batch_size, embedding_size)
+        documents (Tensor): (document_size, embedding_size)
+        device (_type_): _description_
+        K (int, optional): _description_. Defaults to 5.
+
+    Returns:
+        _type_: _description_
+    """
+    num_documents = len(documents)
+    if K > num_documents:
+        raise ValueError("K cannot be greater than the number of documents")
+    sample_scores = F.cosine_similarity(original_embedding.unsqueeze(dim=0), documents)
+    _, indices = torch.topk(sample_scores, k=K, largest=False)
+    negative_samples = [documents[i] for i in indices]
+    return torch.stack(negative_samples, dim=0)
+    
 
 class AverageMeter:
     """Computes and stores the average and current value

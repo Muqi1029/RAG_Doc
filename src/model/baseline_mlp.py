@@ -2,7 +2,7 @@ from typing import List
 import torch
 from torch import nn
 import torch.nn.functional as F
-from utils import getRandomDocumentEmbedding
+from utils import getNegativeDocumentEmbedding, getRandomDocumentEmbedding
 
 
 class BaselineMLP(nn.Module):
@@ -16,14 +16,20 @@ class BaselineMLP(nn.Module):
             linear_layers.append(nn.ReLU())
         linear_layers.append(nn.Linear(hidden_dims[-1], input_dim))
         self.mlp = nn.Sequential(*linear_layers)
-    
+
     def forward(self, x):
         return self.mlp(x)
 
 
-def CosineSimilarityLoss(x, y, device, K=64, documents=None):
-    sampledDocumentEmbedding = getRandomDocumentEmbedding(documents=documents, device=device, K=K)
-    return (1 - F.cosine_similarity(x.unsqueeze(dim=0), y, dim=-1)).sum() / y.size(0) + \
-        (F.cosine_similarity(x.unsqueeze(dim=0), sampledDocumentEmbedding)).sum() / K
+def CosineSimilarityLoss(original_embedding, x, x_plus, device, K=64, documents=None):
+    # sampledDocumentEmbedding = getRandomDocumentEmbedding(
+    #     documents=documents, device=device, K=K)
+    sampleNegativeDocumentEmbedding = getNegativeDocumentEmbedding(original_embedding, documents, device, K=K)
+    return (1 - F.cosine_similarity(x.unsqueeze(dim=0), x_plus, dim=-1)).sum() / x_plus.size(0) + \
+        (F.cosine_similarity(x.unsqueeze(dim=0), sampleNegativeDocumentEmbedding)).sum() / K
 
-        
+
+def CrossEntropySimilarityLoss(x, y, device, K=128):
+    pass
+    # CrossEntropy 
+

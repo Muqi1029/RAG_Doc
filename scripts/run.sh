@@ -2,4 +2,4 @@
 
 python run.py
 
-python run.py --test
+# python run.py --test
