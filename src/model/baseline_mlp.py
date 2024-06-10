@@ -21,12 +21,6 @@ class BaselineMLP(nn.Module):
         return self.mlp(x)
 
 
-def CosineSimilarityLoss(original_embedding, x, x_plus, device, K=64, documents=None):
-    # sampledDocumentEmbedding = getRandomDocumentEmbedding(
-    #     documents=documents, device=device, K=K)
-    sampleNegativeDocumentEmbedding = getNegativeDocumentEmbedding(original_embedding, documents, device, K=K)
-    return (1 - F.cosine_similarity(x.unsqueeze(dim=0), x_plus, dim=-1)).sum() / x_plus.size(0) + \
-        (F.cosine_similarity(x.unsqueeze(dim=0), sampleNegativeDocumentEmbedding)).sum() / K
 
 
 def CrossEntropySimilarityLoss(x, y, device, K=128):

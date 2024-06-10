@@ -39,6 +39,7 @@ def adjust_learning_rate(optimizer, init_lr: float, epoch: int, args):
         else:
             param_group['lr'] = cur_lr
     
+    
 def retrieve_top_k_documents(query_embedding, document_embeddings, k=3):
     """
     从所有document embeddings中检索出与query embedding最相关的前k个document。
@@ -54,7 +55,10 @@ def retrieve_top_k_documents(query_embedding, document_embeddings, k=3):
     _, top_document_indices = similarities.topk(k)
     return top_document_indices.tolist()
 
+
 def save_params(model, model_name, checkpoint_dir='checkpoint'):
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
     filepath = os.path.join(checkpoint_dir, f"model_{model_name}.params")
     torch.save(model.state_dict(), filepath)
     print(f"model successfully saved to 'checkpoint/model_{model_name}.params'")
@@ -66,6 +70,7 @@ def load_params(model, model_name, device: str, checkpoint_dir='checkpoint'):
     print(f"model successfully loaded from 'checkpoint/model_{model_name}.params'")
     return model
 
+
 def getRandomDocumentEmbedding(documents, device, K=5):
     num_documents = len(documents)
     if K > num_documents:
@@ -75,7 +80,7 @@ def getRandomDocumentEmbedding(documents, device, K=5):
     return torch.Tensor(random_document_embedding, device=device)
 
 
-def getNegativeDocumentEmbedding(original_embedding, documents: Tensor, device, K=5):
+def getNegativeDocumentEmbedding(original_embedding, documents: Tensor, K=5):
     """
 
     Args:
@@ -88,12 +93,14 @@ def getNegativeDocumentEmbedding(original_embedding, documents: Tensor, device, 
         _type_: _description_
     """
     num_documents = len(documents)
+    random_indices = torch.tensor(random.sample(range(num_documents), 2048), device=documents.device, dtype=torch.long)
+    sampled_document = documents[random_indices]
+
     if K > num_documents:
         raise ValueError("K cannot be greater than the number of documents")
-    sample_scores = F.cosine_similarity(original_embedding.unsqueeze(dim=0), documents)
+    sample_scores = F.cosine_similarity(original_embedding.unsqueeze(dim=0), sampled_document)
     _, indices = torch.topk(sample_scores, k=K, largest=False)
-    negative_samples = [documents[i] for i in indices]
-    return torch.stack(negative_samples, dim=0)
+    return documents[indices]
     
 
 class AverageMeter:

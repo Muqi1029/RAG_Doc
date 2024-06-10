@@ -5,16 +5,22 @@ from tqdm import tqdm
 from utils import read_json, write_json, retrieve_top_k_documents
 
 
-def train(dataset, model, optimizer, lr_scheduler, loss_function, epochs, batch_size, device, document_dir='input/document.json'):
+def train(dataset, model, optimizer, lr_scheduler, loss_function, args, device, document_dir='input/document.json'):
     time_metric = AverageMeter("epoch time:", fmt=":.4f")
     documents = read_json(document_dir)
-    documents = torch.tensor([document['facts_embedding'] for document in documents], device=device)
+    if args.doc_plus_title:
+        documents = torch.tensor([document['facts_embedding'] + document['title_embedding'] 
+                                  for document in documents], device=device)
+        dim = documents.size(1) // 2
+        documents = documents[:, :dim] + documents[:, dim:]
+    else: 
+        documents = torch.tensor([document['facts_embedding'] for document in documents], device=device)
     
-    for epoch in range(epochs):
+    for epoch in range(args.epochs):
         start_time = time.time()
         loss_metric = AverageMeter("loss:", fmt=":.4f")
         # num_batches = len(dataset) // batch_size
-        progress = ProgressMeter(epochs, [time_metric, loss_metric], prefix="Epoch: ")
+        progress = ProgressMeter(args.epochs, [time_metric, loss_metric], prefix="Epoch: ")
         
         for i in range(len(dataset)):
             if dataset[i] is not None:
@@ -22,9 +28,9 @@ def train(dataset, model, optimizer, lr_scheduler, loss_function, epochs, batch_
                 query_embedding, evidence_list = torch.Tensor(query_embedding).to(device), torch.Tensor(evidence_list).to(device)
                 pred = model(query_embedding)
 
-                loss = loss_function(query_embedding, pred, evidence_list, device, documents=documents)
+                loss = loss_function(query_embedding, pred, evidence_list, documents=documents)
                 loss.backward()
-                if i % batch_size == 0:
+                if i % args.batch_size == 0:
                     optimizer.step()
                     lr_scheduler.step()
                     optimizer.zero_grad()
@@ -33,7 +39,7 @@ def train(dataset, model, optimizer, lr_scheduler, loss_function, epochs, batch_
         progress.display(epoch + 1)
 
 
-def test(model, device, test_data_dir: str = "input/query_testset.json", document_dir: str = "input/document.json"):
+def test(model, model_name: str, device, test_data_dir: str = "input/query_testset.json", document_dir: str = "input/document.json"):
     query = read_json(test_data_dir)
     document = read_json(document_dir)
     document_embeddings = torch.tensor([entry['facts_embedding'] for entry in document], device=device)
@@ -48,6 +54,6 @@ def test(model, device, test_data_dir: str = "input/query_testset.json", documen
         result['query_input_list'] = item['query_input_list']
         result['evidence_list'] = [{'fact_input_list': document[index]['fact_input_list']} for index in top_document_indices]
         results.append(result)
-    filepath = "output/baseline_mlp_result.json"
+    filepath = f"output/{model_name}.json"
     write_json(filepath, results)
     print(f'write to {filepath} successfully')

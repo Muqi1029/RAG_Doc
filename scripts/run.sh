@@ -1,5 +1,5 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
-python run.py
+python run.py --loss "negative_sample"
 
-# python run.py --test
+python run.py --test
