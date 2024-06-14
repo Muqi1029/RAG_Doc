@@ -1,0 +1,18 @@
+{
+    "baseline": {
+        "Recall_at_3": 0.2121,
+        "MRR_at_3": 0.1584
+    },
+    "mlp_nce": {
+        "Recall_at_3": 0.4899,
+        "MRR_at_3": 0.3744
+    },
+    "simclr": {
+        "Recall_at_3": 0.092,
+        "MRR_at_3": 0.08
+    },
+    "byol": {
+        "Recall_at_3": 0.00,
+        "MRR_at_3": 0.00
+    }
+}
