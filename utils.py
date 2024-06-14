@@ -56,49 +56,46 @@ def retrieve_top_k_documents(query_embedding, document_embeddings, k=3):
     return top_document_indices.tolist()
 
 
-def save_params(model, model_name, checkpoint_dir='checkpoint'):
+def save_params(model, filename, checkpoint_dir='checkpoint'):
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
-    filepath = os.path.join(checkpoint_dir, f"model_{model_name}.params")
+    filepath = os.path.join(checkpoint_dir, f"model_{filename}.params")
     torch.save(model.state_dict(), filepath)
-    print(f"model successfully saved to 'checkpoint/model_{model_name}.params'")
+    print(f"model successfully saved to 'checkpoint/model_{filename}.params'")
 
 
-def load_params(model, model_name, device: str, checkpoint_dir='checkpoint'):
-    filepath = os.path.join(checkpoint_dir, f"model_{model_name}.params")
+def load_params(model, filename, device: str, checkpoint_dir='checkpoint'):
+    filepath = os.path.join(checkpoint_dir, f"model_{filename}.params")
     model.load_state_dict(torch.load(filepath, map_location=device))
-    print(f"model successfully loaded from 'checkpoint/model_{model_name}.params'")
+    print(f"model successfully loaded from 'checkpoint/model_{filename}.params'")
     return model
 
 
-def getRandomDocumentEmbedding(documents, device, K=5):
-    num_documents = len(documents)
-    if K > num_documents:
-        raise ValueError("K cannot be greater than the number of documents")
-    random_indices = random.sample(range(num_documents), K)
-    random_document_embedding = [documents[i] for i in random_indices]
-    return torch.Tensor(random_document_embedding, device=device)
-
-
-def getNegativeDocumentEmbedding(original_embedding, documents: Tensor, K=5):
+def getRandomDocumentEmbedding(documents: Tensor, K:int = 5):
     """
 
     Args:
-        x (Tensor): (batch_size, embedding_size)
-        documents (Tensor): (document_size, embedding_size)
-        device (_type_): _description_
-        K (int, optional): _description_. Defaults to 5.
+        documents (Tensor): (num_documents, embedding_dim)
+        K (int, optional): The number of sampled documents. Defaults to 5.
 
     Returns:
-        _type_: _description_
+        Tensor: randomly sampled documents
     """
+    num_documents = documents.size(dim=0)
+    if K > num_documents:
+        raise ValueError("K cannot be greater than the number of documents")
+    random_indices = torch.tensor(random.sample(range(num_documents), K), dtype=torch.long, device=documents.device)
+    return documents[random_indices]
+
+
+def getNegativeDocumentEmbedding(original_embedding:Tensor, documents: Tensor, K=5):
     num_documents = len(documents)
-    random_indices = torch.tensor(random.sample(range(num_documents), 2048), device=documents.device, dtype=torch.long)
+    random_indices = torch.tensor(random.sample(range(num_documents), 6144), device=documents.device, dtype=torch.long)
     sampled_document = documents[random_indices]
 
     if K > num_documents:
         raise ValueError("K cannot be greater than the number of documents")
-    sample_scores = F.cosine_similarity(original_embedding.unsqueeze(dim=0), sampled_document)
+    sample_scores = F.cosine_similarity(original_embedding, sampled_document)
     _, indices = torch.topk(sample_scores, k=K, largest=False)
     return documents[indices]
     

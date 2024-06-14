@@ -1,59 +1,157 @@
-from utils import AverageMeter, ProgressMeter
+from utils import AverageMeter, ProgressMeter, getNegativeDocumentEmbedding, getRandomDocumentEmbedding
 import torch
 import time
 from tqdm import tqdm
 from utils import read_json, write_json, retrieve_top_k_documents
+from src.loss import CosineSimilarityLoss, NCELossForSimCLR
+
+class Trainer:
+    def __init__(self, model_name: str, model, optimizer, lr_scheduler, args, document_dir='input/document.json'):
+        self.model_name = model_name
+        self.model = model
+        self.optimizer = optimizer
+        self.lr_scheduler = lr_scheduler
+        self.args = args
+        self.document_dir = document_dir
+
+    def train(self, dataset):
+        documents = read_json(self.document_dir)
+        time_metric = AverageMeter("epoch time:", fmt=":.4f")
+
+        if self.args.doc_plus_title:
+            documents = torch.tensor([document['facts_embedding'] + document['title_embedding']
+                                      for document in documents], device=self.args.device)
+            dim = documents.size(1) // 2
+            documents = documents[:, :dim] + documents[:, dim:]
+        else:
+            documents = torch.tensor([document['facts_embedding']
+                                     for document in documents], device=self.args.device)
+
+        if self.model_name == 'simclr':
+            loss_func = NCELossForSimCLR
+            # start training
+            for epoch in range(self.args.epochs):
+                start_time = time.time()
+                loss_metric = AverageMeter("loss:", fmt=":.4f")
+                progress = ProgressMeter(
+                    self.args.epochs, [time_metric, loss_metric], prefix="Epoch: ")
+
+                for i in range(len(dataset)):
+                    if dataset[i] is not None:
+                        query_embedding, evidence_list = dataset[i]
+                        query_embedding, evidence_list = torch.Tensor(query_embedding).to(
+                            self.args.device), torch.Tensor(evidence_list).to(self.args.device)
+                        if self.args.random:
+                            x_negative_embedding = getRandomDocumentEmbedding(documents, K=self.args.K)
+                        else: x_negative_embedding = getNegativeDocumentEmbedding(
+                            original_embedding=query_embedding, documents=documents, K=self.args.K)
+
+                        x = self.model(query_embedding)
+                        x_plus = self.model(evidence_list)
+                        x_negative = self.model(x_negative_embedding)
+                        loss = loss_func(x=x, x_plus=x_plus, x_negative=x_negative)
+                        loss.backward()
+                        if i % self.args.batch_size == 0:
+                            self.optimizer.step()
+                            self.lr_scheduler.step()
+                            self.optimizer.zero_grad()
+                        loss_metric.update(loss.item())
+                time_metric.update(time.time() - start_time)
+                progress.display(epoch + 1)
+
+        elif self.model_name == 'mlp':
+            loss_func = NCELossForSimCLR
+            # start training
+            for epoch in range(self.args.epochs):
+                start_time = time.time()
+                loss_metric = AverageMeter("loss:", fmt=":.4f")
+                progress = ProgressMeter(
+                    self.args.epochs, [time_metric, loss_metric], prefix="Epoch: ")
+
+                for i in range(len(dataset)):
+                    if dataset[i] is not None:
+                        query_embedding, evidence_list = dataset[i]
+                        query_embedding, evidence_list = torch.Tensor(query_embedding).to(
+                            self.args.device), torch.Tensor(evidence_list).to(self.args.device)
+                        if self.args.random:
+                            negative_document_embedding = getRandomDocumentEmbedding(documents, K=self.args.K)
+                        else: negative_document_embedding = getNegativeDocumentEmbedding(query_embedding, documents, K=self.args.K)
+                        pred = self.model(query_embedding)
+                        loss = loss_func(x=pred, x_plus=evidence_list, x_negative=negative_document_embedding)
+                        loss.backward()
+                        if i % self.args.batch_size == 0:
+                            self.optimizer.step()
+                            self.lr_scheduler.step()
+                            self.optimizer.zero_grad()
+                        loss_metric.update(loss.item())
+                time_metric.update(time.time() - start_time)
+                progress.display(epoch + 1)
+        elif self.model_name == 'byol':
+            loss_func = CosineSimilarityLoss
+            # start training
+            for epoch in range(self.args.epochs):
+                start_time = time.time()
+                loss_metric = AverageMeter("loss:", fmt=":.4f")
+                progress = ProgressMeter(
+                    self.args.epochs, [time_metric, loss_metric], prefix="Epoch: ")
+
+                for i in range(len(dataset)):
+                    if dataset[i] is not None:
+                        query_embedding, evidence_list = dataset[i]
+                        query_embedding, evidence_list = torch.Tensor(query_embedding).to(
+                            self.args.device), torch.Tensor(evidence_list).to(self.args.device)
+                        pred = self.model(query_embedding)
+                        loss = loss_func(x=pred, y=evidence_list)
+                        loss.backward()
+                        if i % self.args.batch_size == 0:
+                            self.optimizer.step()
+                            self.lr_scheduler.step()
+                            self.optimizer.zero_grad()
+                        loss_metric.update(loss.item())
+                time_metric.update(time.time() - start_time)
+                progress.display(epoch + 1)
 
 
-def train(dataset, model, optimizer, lr_scheduler, loss_function, args, device, document_dir='input/document.json'):
-    time_metric = AverageMeter("epoch time:", fmt=":.4f")
-    documents = read_json(document_dir)
-    if args.doc_plus_title:
-        documents = torch.tensor([document['facts_embedding'] + document['title_embedding'] 
-                                  for document in documents], device=device)
-        dim = documents.size(1) // 2
-        documents = documents[:, :dim] + documents[:, dim:]
-    else: 
-        documents = torch.tensor([document['facts_embedding'] for document in documents], device=device)
+# def simulate_test():
     
-    for epoch in range(args.epochs):
-        start_time = time.time()
-        loss_metric = AverageMeter("loss:", fmt=":.4f")
-        # num_batches = len(dataset) // batch_size
-        progress = ProgressMeter(args.epochs, [time_metric, loss_metric], prefix="Epoch: ")
         
-        for i in range(len(dataset)):
-            if dataset[i] is not None:
-                query_embedding, evidence_list = dataset[i]
-                query_embedding, evidence_list = torch.Tensor(query_embedding).to(device), torch.Tensor(evidence_list).to(device)
-                pred = model(query_embedding)
+            
+        
 
-                loss = loss_function(query_embedding, pred, evidence_list, documents=documents)
-                loss.backward()
-                if i % args.batch_size == 0:
-                    optimizer.step()
-                    lr_scheduler.step()
-                    optimizer.zero_grad()
-                loss_metric.update(loss.item())
-        time_metric.update(time.time() - start_time)
-        progress.display(epoch + 1)
-
-
-def test(model, model_name: str, device, test_data_dir: str = "input/query_testset.json", document_dir: str = "input/document.json"):
+def test(model, model_name: str, args, test_data_dir: str = "input/query_testset.json", document_dir: str = "input/document.json"):
     query = read_json(test_data_dir)
     document = read_json(document_dir)
-    document_embeddings = torch.tensor([entry['facts_embedding'] for entry in document], device=device)
-    results = []
-    
-    for item in tqdm(query):
-        result = {}
-        query_embedding = torch.tensor(item['query_embedding'], device=device)
-        pred = model(query_embedding)
+    document_embeddings = torch.tensor(
+        [entry['facts_embedding'] for entry in document], device=args.device)
 
-        top_document_indices = retrieve_top_k_documents(pred, document_embeddings, k=3)
-        result['query_input_list'] = item['query_input_list']
-        result['evidence_list'] = [{'fact_input_list': document[index]['fact_input_list']} for index in top_document_indices]
-        results.append(result)
-    filepath = f"output/{model_name}.json"
-    write_json(filepath, results)
-    print(f'write to {filepath} successfully')
+    results = []
+    model.eval()
+    with torch.no_grad(): 
+        if model_name == 'simclr':
+            proj_document_embeddings = model.net(document_embeddings)
+            for item in tqdm(query):
+                result = {}
+                query_embedding = torch.tensor(item['query_embedding'], device=args.device)
+                pred = model.net(query_embedding)
+                top_document_indices = retrieve_top_k_documents(pred, proj_document_embeddings, k=3)
+                assert len(top_document_indices) == 3
+                result['query_input_list'] = item['query_input_list']
+                result['evidence_list'] = [
+                    {'fact_input_list': document[index]['fact_input_list']} for index in top_document_indices]
+                results.append(result)
+        elif model_name == 'mlp':
+            for item in tqdm(query):
+                result = {}
+                query_embedding = torch.tensor(item['query_embedding'], device=args.device)
+                pred = model(query_embedding)
+
+                top_document_indices = retrieve_top_k_documents(
+                    pred, document_embeddings, k=3)
+                result['query_input_list'] = item['query_input_list']
+                result['evidence_list'] = [
+                    {'fact_input_list': document[index]['fact_input_list']} for index in top_document_indices]
+                results.append(result)
+                
+        filepath = f"output/{model_name}_random.json" if args.random else f"output/{model_name}_neg.json"
+        write_json(filepath, results)
+        print(f'write to {filepath} successfully')

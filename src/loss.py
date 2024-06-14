@@ -58,29 +58,27 @@ def CrossEntropyLoss(original_embedding: Tensor, x: Tensor,
     return F.cross_entropy(logits, labels)
 
 
-def NCELoss(original_embedding: Tensor, x: Tensor,
-            x_plus: Tensor, K: int, *, documents: Tensor):
-    """Compute NCE Loss
+def CosineSimilarityLoss(x, y):
+    l = (1 - F.cosine_similarity(x.unsqueeze(dim=0), y, dim=-1)).sum() / y.size(0)
+    return l
+
+
+def NCELossForSimCLR(x: Tensor, x_plus: Tensor, x_negative: Tensor):
+    """Compute NCELoss
 
     Args:
-        original_embedding (Tensor): (embedding_size)
-        x (Tensor): (embedding_size, )
-        x_plus (Tensor): (num_plus, embedding_size)
-        K (int): the number of negative samples
-        documents (_type_, optional): _description_. Defaults to None.
-
-    Returns:
-        scalar tensor: represents the NCE loss
+        x (Tensor): (1, dim)
+        x_plus (Tensor): (num_plus, dim)
+        x_negative (Tensor): (num_negative, dim)
     """
-    x.unsqueeze_(dim=0)
-    negative_document_embedding = getNegativeDocumentEmbedding(
-        original_embedding,
-        documents,
-        K=K)
     num_plus = x_plus.size(dim=0)
-    embeddings = torch.cat([x_plus, negative_document_embedding], dim=0)
+    embeddings = torch.cat([x_plus, x_negative], dim=0)
     logits = F.cosine_similarity(x, embeddings, dim=-1)
     exp_logits = torch.exp(logits)
+    
     pos_exp = exp_logits[:num_plus].sum()
     all_exp = exp_logits.sum()
     return -torch.log(pos_exp / all_exp)
+    
+
+    

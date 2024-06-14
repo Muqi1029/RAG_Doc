@@ -11,7 +11,7 @@ class QueryDataset(Dataset):
         evidence_list = self.data[idx]['evidence_list']
         if len(evidence_list) == 0:
             return None
-        return self.data[idx]['query_embedding'], \
+        return [self.data[idx]['query_embedding']], \
             [evidence['fact_embedding'] for evidence in evidence_list]
     
     def __len__(self):
