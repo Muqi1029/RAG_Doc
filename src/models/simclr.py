@@ -18,13 +18,12 @@ class Projector(nn.Module):
 class SimCLR(nn.Module):
     def __init__(self, input_dim, hidden_dims, out_dim):
         super().__init__()
-        self.net = BaselineMLP(input_dim, hidden_dims, out_dim=out_dim)
+        self.backbone = BaselineMLP(input_dim, hidden_dims, out_dim=out_dim)
         self.projector = Projector(dim=out_dim)
-    
-    
-    def forward(self, x, return_feature=False):
-        features = self.net(x)
-        z = self.projector(features)
-        if return_feature: return features
-        else: return z
 
+    def forward(self, x, return_feature=False):
+        features = self.backbone(x)
+        z = self.projector(features)
+        if return_feature:
+            return features
+        return z

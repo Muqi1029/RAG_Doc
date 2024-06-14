@@ -1,4 +1,4 @@
-from typing import Union, Optional
+from typing import Optional
 import torch.nn.functional as F
 from torch import Tensor
 import torch
@@ -7,11 +7,10 @@ from utils import getNegativeDocumentEmbedding, getRandomDocumentEmbedding
 
 def RandomCosineSimilarityLoss(original_embedding, x, x_plus, device,
                                K=64, documents=None):
-    # TODO: Simple Baseline   
     sampledDocumentEmbedding = getRandomDocumentEmbedding(
         documents=documents, device=device, K=K)
     return (1 - F.cosine_similarity(x.unsqueeze(dim=0), x_plus, dim=-1)).sum() / x_plus.size(0) + \
-        (F.cosine_similarity(x.unsqueeze(dim=0), sampledDocumentEmbedding)).sum() / K
+        (F.cosine_similarity(x.unsqueeze(dim=0), sampledDocumentEmbedding)).mean()
 
 
 def NegativeCosineSimilarityLoss(original_embedding: Tensor, x: Tensor,
@@ -63,7 +62,7 @@ def CosineSimilarityLoss(x, y):
     return l
 
 
-def NCELossForSimCLR(x: Tensor, x_plus: Tensor, x_negative: Tensor):
+def NCELoss(x: Tensor, x_plus: Tensor, x_negative: Tensor):
     """Compute NCELoss
 
     Args:

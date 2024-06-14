@@ -1,5 +1,5 @@
+""" Compute MLPHead """
 from torch import nn
-import torch
 
 
 class MLPHead(nn.Module):
@@ -8,7 +8,7 @@ class MLPHead(nn.Module):
 
         self.net = nn.Sequential(
             nn.Linear(in_channels, mlp_hidden_size),
-            nn.BatchNorm1d(mlp_hidden_size),
+            nn.LayerNorm(mlp_hidden_size),
             nn.ReLU(inplace=True),
             nn.Linear(mlp_hidden_size, projection_size)
         )
